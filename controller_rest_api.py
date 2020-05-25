@@ -22,8 +22,8 @@ api = Api(app)
 class CachingDB(Resource):
     def __init__(self):
         self.on_deman_caching_datastructure = {}  # A dict with key the URI and R the rate (# of requests )
-        self.proxy_list = []
-        self.LEN_PROXIES = len(proxy_to_clients)
+        self.proxy_list = []  # Initialize in the begin of the rest api
+        self.LEN_PROXIES = len(self.proxy_list)
         self.cache_dict = {}
         self.THREHOLD = 0.8
         self.LAMBDA = 30
