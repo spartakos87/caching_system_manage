@@ -50,9 +50,9 @@ class CachingDB(Resource):
         """
         if bool(self.on_deman_caching_datastracture):
             # Case the data structure is not empty
-            if self.on_deman_caching_datastructure.get(url, None):
+            if self.on_deman_caching_datastructure.get(uri, None):
                 r = self.on_deman_caching_datastructure[uri]
-                if self.popularity_probability(R+1) > self.THREHOLD:
+                if self.popularity_probability(r+1) > self.THREHOLD:
                     for proxy in self.proxy_list:
                         proxy = {"http": proxy}
                         res_via_proxy = get(uri, proxies=proxy)
