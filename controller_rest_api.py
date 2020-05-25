@@ -8,15 +8,15 @@ from requests import get
 app = Flask(__name__)
 api = Api(app)
 # START_TIME = 0
-CACHE_TIME = 10
-cache_dict = {}
-# TODO parse proxy_to_clients as file or as argument
-proxy_to_clients = {}
-proxy_list = []
-LEN_PROXIES = len(proxy_to_clients)
-THREHOLD = 0.8
-LAMBDA = 30
-E = 2.718
+# CACHE_TIME = 10
+# cache_dict = {}
+# # TODO parse proxy_to_clients as file or as argument
+# proxy_to_clients = {}
+# proxy_list = []
+# LEN_PROXIES = len(proxy_to_clients)
+# THREHOLD = 0.8
+# LAMBDA = 30
+# E = 2.718
 
 
 class CachingDB(Resource):
