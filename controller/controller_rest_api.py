@@ -5,6 +5,9 @@ from random import randint
 from math import factorial, pow
 from requests import get
 import json
+import os
+import fcntl
+
 app = Flask(__name__)
 api = Api(app)
 # START_TIME = 0
@@ -18,14 +21,14 @@ api = Api(app)
 # LAMBDA = 30
 # E = 2.718
 
-on_deman_caching_datastructure = {} 
+
 
 
 
 class CachingDB(Resource):
     def __init__(self):
         #self.on_deman_caching_datastructure = {}  # A dict with key the URI and R the rate (# of requests )
-        self.proxy_list = ['http://localhost:7777']  # Initialize in the begin of the rest api
+        self.proxy_list = ['http://localhost:7777', 'http://localhost:7778']  # Initialize in the begin of the rest api
         self.LEN_PROXIES = len(self.proxy_list)
         self.cache_dict = {}
         self.THREHOLD = 0.8
@@ -35,11 +38,15 @@ class CachingDB(Resource):
     def read_write_json(self,f,flag=True,input_data=None):
         if flag:
            with open(f+'.json') as o:
-                data = json.load(o)
+               fcntl.flock(o, fcntl.LOCK_EX)
+               data = json.load(o)
+               fcntl.flock(o, fcntl.LOCK_UN)
            return data
         else:
-           with open(f+'.json','w') as o:
+            with open(f+'.json','w') as o:
+                fcntl.flock(o, fcntl.LOCK_EX)
                 json.dump(input_data,o)
+                fcntl.flock(o, fcntl.LOCK_UN)
     def popularity_probability(self, r):
         """
 
@@ -48,16 +55,17 @@ class CachingDB(Resource):
         """
         g = 0
         for i in range(r+1):
-            self.g += (pow(self.LAMBDA, i) * pow(self.E, -self.LAMBDA)) / factorial(i)
+            g += (pow(self.LAMBDA, i) * pow(self.E, -self.LAMBDA)) / factorial(i)
         return g
 
-    def on_demand_caching(self, uri):
+    def on_demand_caching(self, uri, cache_dict):
         """
         Implement the On-demand caching algorithm base to paper,
          DOI: http://dx.doi.org/10.1145/2836183.2836189 (section 3.1 )
 
         :return:
         """
+        on_deman_caching_datastructure = self.read_write_json('on_deman_caching_datastructure')
         if bool(on_deman_caching_datastructure):
             # Case the data structure is not empty
             if on_deman_caching_datastructure.get(uri, None):
@@ -65,29 +73,38 @@ class CachingDB(Resource):
                 if self.popularity_probability(r+1) > self.THREHOLD:
                     for proxy in self.proxy_list:
                         proxy = {"http": proxy}
-                        res_via_proxy = get(uri, proxies=proxy)
-                        if res_via_proxy.status_code == 200:
-                            print("Cach object {} in proxy {}".format(uri, proxy))
-                            # Update self.cache_dict
-                            self.update_cache_dict(uri, proxy, cache_dict)
-                        else:
-                            print("Something goes wrong")
+                        # res_via_proxy = get(uri, proxies=proxy)
+                        # if res_via_proxy.status_code == 200:
+                        #     # Update self.cache_dict
+                        #     self.update_cache_dict(uri, proxy, cache_dict)
+                        self.update_cache_dict(uri, proxy, cache_dict)
+                        on_deman_caching_datastructure[uri] = r+1
+                        self.read_write_json('on_deman_caching_datastructure', False, on_deman_caching_datastructure)
+                        # else:
+                        #     print("Something goes wrong")
                 else:
                     on_deman_caching_datastructure[uri] = r + 1
+                    self.read_write_json('on_deman_caching_datastructure', False, on_deman_caching_datastructure)
+            else:
+                on_deman_caching_datastructure[uri] = 1
+                self.read_write_json('on_deman_caching_datastructure', False, on_deman_caching_datastructure)
+        else:
+            on_deman_caching_datastructure[uri] = 1
+            self.read_write_json('on_deman_caching_datastructure', False, on_deman_caching_datastructure)
 
-    def clean_cache_dict(self, cache_dict):
-        # TODO remove it we don't need it
-        """
-        Remove the caching objects which theis timestamps are expired
-
-        :param cache_dict:
-        :return:
-        """
-        try:
-            cache_dict = list(filter(lambda x: time()-x[1]["timestamp"] < CACHE_TIME, cache_dict.items()))
-            return cache_dict
-        except:
-            return cache_dict
+    # def clean_cache_dict(self, cache_dict):
+    #     # TODO remove it we don't need it
+    #     """
+    #     Remove the caching objects which theis timestamps are expired
+    #
+    #     :param cache_dict:
+    #     :return:
+    #     """
+    #     try:
+    #         cache_dict = list(filter(lambda x: time()-x[1]["timestamp"] < CACHE_TIME, cache_dict.items()))
+    #         return cache_dict
+    #     except:
+    #         return cache_dict
 
 
     def export_data(self, proxy_url, cache_dict):
@@ -131,12 +148,13 @@ class CachingDB(Resource):
         post_data = request.get_json()
         request_url = post_data.get("url", None)
         # Call on demand caching
-        self.on_demand_caching(request_url)
+        # self.on_demand_caching(request_url)
         # client_ip = post_data.get("client_ip", None)
         if request_url is None:
             raise Exception("There isn't url")
         # Check if cache_dict is empty
         cache_dict = self.read_write_json('cache_dict')
+        self.on_demand_caching(request_url, cache_dict)
         if bool(cache_dict):
             # cache_dict is not empty
             # Check if the request url is in cache_dict
